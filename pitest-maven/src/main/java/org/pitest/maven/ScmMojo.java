@@ -10,10 +10,15 @@ import java.util.Set;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.scm.ChangeFile;
+import org.apache.maven.scm.ChangeSet;
 import org.apache.maven.scm.ScmException;
 import org.apache.maven.scm.ScmFile;
 import org.apache.maven.scm.ScmFileSet;
 import org.apache.maven.scm.ScmFileStatus;
+import org.apache.maven.scm.ScmRevision;
+import org.apache.maven.scm.command.changelog.ChangeLogScmRequest;
+import org.apache.maven.scm.command.changelog.ChangeLogSet;
 import org.apache.maven.scm.command.status.StatusScmResult;
 import org.apache.maven.scm.manager.ScmManager;
 import org.apache.maven.scm.repository.ScmRepository;
@@ -155,7 +160,33 @@ public class ScmMojo extends PitMojo {
 
   }
 
-  private Set<ScmFileStatus> makeStatusSet() {
+  private List<String> findPathsModifiedInRevision(final String revision) throws MojoExecutionException {
+      ChangeLogSet changeLogSet = fetchChangeLogsForRevision(revision);
+      List<String> modifiedPaths = new ArrayList<String>();
+      for (ChangeSet changeSet : changeLogSet.getChangeSets()) {
+          for (ChangeFile f : changeSet.getFiles()) {
+              modifiedPaths.add(f.getName());
+          }
+      }
+      return FCollection.flatMap(modifiedPaths, new PathToJavaClassConverter(scmRoot().getAbsolutePath()));
+  }
+
+    private ChangeLogSet fetchChangeLogsForRevision(final String revision) throws MojoExecutionException {
+
+        try {
+            ScmRepository repository = this.manager.makeScmRepository(getSCMConnection());
+            ChangeLogScmRequest changeLogScmRequest = new ChangeLogScmRequest(repository,
+                    new ScmFileSet(scmRoot()));
+            ScmRevision scmRevision = new ScmRevision(revision);
+            changeLogScmRequest.setStartRevision(scmRevision);
+            changeLogScmRequest.setEndRevision(scmRevision);
+            return this.manager.changeLog(changeLogScmRequest).getChangeLog();
+        } catch (ScmException e) {
+            throw new MojoExecutionException("Error while querying scm", e);
+        }
+    }
+
+    private Set<ScmFileStatus> makeStatusSet() {
     if ((this.include == null) || this.include.isEmpty()) {
       return new HashSet<ScmFileStatus>(Arrays.asList(
           ScmStatus.ADDED.getStatus(), ScmStatus.MODIFIED.getStatus()));

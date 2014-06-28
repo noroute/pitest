@@ -1,6 +1,7 @@
 package org.pitest.maven;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -9,14 +10,21 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 
 import org.apache.maven.model.Build;
 import org.apache.maven.model.Scm;
 import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.scm.ChangeFile;
+import org.apache.maven.scm.ChangeSet;
 import org.apache.maven.scm.ScmException;
 import org.apache.maven.scm.ScmFile;
 import org.apache.maven.scm.ScmFileSet;
 import org.apache.maven.scm.ScmFileStatus;
+import org.apache.maven.scm.command.changelog.ChangeLogScmRequest;
+import org.apache.maven.scm.command.changelog.ChangeLogScmResult;
+import org.apache.maven.scm.command.changelog.ChangeLogSet;
 import org.apache.maven.scm.command.status.StatusScmResult;
 import org.apache.maven.scm.manager.ScmManager;
 import org.apache.maven.scm.repository.ScmRepository;
@@ -121,6 +129,26 @@ public class ScmMojoTest extends BasePitMojoTest {
     this.testee.execute();
     verify(this.executionStrategy, never()).execute(any(File.class),
         any(ReportOptions.class), any(PluginServices.class));
+  }
+
+  public void testClassesModifiedInRevisionAreMutationTested()
+          throws ScmException, MojoFailureException, MojoExecutionException {
+      setupConnection();
+      ChangeSet changeSet = new ChangeSet(
+              new Date(),
+              "comment",
+              "author",
+              Arrays.asList(
+                      new ChangeFile("foo/bar/Bar.java", "12345"),
+                      new ChangeFile("foo/bar/Baz.java", "12345")));
+      ChangeLogSet changeLogSet = new ChangeLogSet(Arrays.asList(changeSet), new Date(), new Date());
+
+      when(this.manager.changeLog(any(ChangeLogScmRequest.class)))
+              .thenReturn(new ChangeLogScmResult("command line", changeLogSet));
+
+      this.testee.execute();
+      verify(this.executionStrategy).execute(any(File.class), any(ReportOptions.class),
+              any(PluginServices.class));
   }
 
   public void testCanOverrideInspectedStatus() throws Exception {
